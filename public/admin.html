@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - Admission Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-6">
+
+  <!-- Login Box -->
+  <div id="loginBox" class="max-w-sm mx-auto mt-20 bg-white p-6 rounded-xl shadow">
+    <h2 class="text-xl font-bold text-slate-800 mb-4">Admin Login</h2>
+    <input type="password" id="adminPassInput" placeholder="Enter Admin Password" class="w-full border rounded-lg px-3 py-2 mb-3 outline-none">
+    <button onclick="login()" class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700">Login</button>
+    <p id="loginErr" class="text-red-600 text-sm mt-2 hidden"></p>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="hidden max-w-6xl mx-auto">
+    <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">Admission Admin Panel</h1>
+        <p class="text-sm text-slate-500">Total Applications: <span id="totalCount" class="font-bold">0</span></p>
+      </div>
+      <div class="flex gap-3">
+        <a href="/" class="bg-slate-200 px-4 py-2 rounded-lg text-sm font-medium">← Admission Form</a>
+        <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium">Logout</button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white p-4 rounded-xl shadow mb-6 flex flex-wrap gap-4">
+      <input type="text" id="searchInput" oninput="renderTable()" placeholder="Search name, phone or CNIC..." class="flex-1 min-w-[200px] border rounded-lg px-3 py-2 text-sm outline-none">
+      <select id="programFilter" onchange="renderTable()" class="border rounded-lg px-3 py-2 text-sm bg-white outline-none">
+        <option value="">All Programs</option>
+        <option value="BS Computer Science">BS Computer Science</option>
+        <option value="BS Software Engineering">BS Software Engineering</option>
+        <option value="BS Information Technology">BS Information Technology</option>
+        <option value="Web Development Diploma">Web Development Diploma</option>
+      </select>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl shadow overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 border-b text-slate-600">
+          <tr>
+            <th class="p-3">Photo</th>
+            <th class="p-3">Student & Father</th>
+            <th class="p-3">Contact & CNIC</th>
+            <th class="p-3">Program & Marks</th>
+            <th class="p-3">Status</th>
+            <th class="p-3">Action</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody" class="divide-y"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let allStudents = [];
+    let adminPass = sessionStorage.getItem('adminPass') || '';
+
+    if (adminPass) loadData();
+
+    async function login() {
+      adminPass = document.getElementById('adminPassInput').value;
+      const ok = await loadData();
+      if (ok) {
+        sessionStorage.setItem('adminPass', adminPass);
+      } else {
+        const err = document.getElementById('loginErr');
+        err.textContent = 'Galat password!';
+        err.classList.remove('hidden');
+      }
+    }
+
+    function logout() {
+      sessionStorage.removeItem('adminPass');
+      location.reload();
+    }
+
+    async function loadData() {
+      const res = await fetch('/api/admissions', {
+        headers: { 'x-admin-password': adminPass }
+      });
+      if (!res.ok) return false;
+      allStudents = await res.json();
+      document.getElementById('loginBox').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+      renderTable();
+      return true;
+    }
+
+    function renderTable() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const prog = document.getElementById('programFilter').value;
+
+      const filtered = allStudents.filter(s => {
+        const matchText = s.full_name.toLowerCase().includes(search) ||
+                          s.phone.includes(search) ||
+                          s.cnic.includes(search);
+        const matchProg = !prog || s.program === prog;
+        return matchText && matchProg;
+      });
+
+      document.getElementById('totalCount').textContent = filtered.length;
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = filtered.map(s => `
+        <tr class="hover:bg-slate-50">
+          <td class="p-3">
+            ${s.photo ? `<img src="${s.photo}" class="w-12 h-12 rounded-lg object-cover border">` : '<div class="w-12 h-12 bg-slate-200 rounded-lg"></div>'}
+          </td>
+          <td class="p-3">
+            <div class="font-semibold text-slate-800">${s.full_name}</div>
+            <div class="text-xs text-slate-500">S/O: ${s.father_name}</div>
+          </td>
+          <td class="p-3">
+            <div>${s.phone}</div>
+            <div class="text-xs text-slate-500">${s.cnic}</div>
+          </td>
+          <td class="p-3">
+            <div class="font-medium">${s.program}</div>
+            <div class="text-xs text-slate-500">Marks: ${s.marks || 'N/A'}</div>
+          </td>
+          <td class="p-3">
+            <select onchange="updateStatus(${s.id}, this.value)" class="border rounded px-2 py-1 text-xs font-medium">
+              <option value="Pending" ${s.status === 'Pending' ? 'selected' : ''}>Pending</option>
+              <option value="Approved" ${s.status === 'Approved' ? 'selected' : ''}>Approved</option>
+              <option value="Rejected" ${s.status === 'Rejected' ? 'selected' : ''}>Rejected</option>
+            </select>
+          </td>
+          <td class="p-3">
+            <button onclick="deleteRecord(${s.id})" class="text-red-600 hover:underline text-xs font-medium">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function updateStatus(id, status) {
+      await fetch(`/api/admissions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPass },
+        body: JSON.stringify({ status })
+      });
+    }
+
+    async function deleteRecord(id) {
+      if (!confirm('Kya aap yeh record delete karna chahte hain?')) return;
+      await fetch(`/api/admissions/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-password': adminPass }
+      });
+      loadData();
+    }
+  </script>
+</body>
+</html>

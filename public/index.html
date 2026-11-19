@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Online Admission Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen py-10 px-4">
+  <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-8">
+    <div class="flex justify-between items-center border-b pb-4 mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">Online Admission Form</h1>
+        <p class="text-sm text-slate-500">Apni details sahi enter karein</p>
+      </div>
+      <a href="/admin.html" class="text-sm text-blue-600 font-medium hover:underline">Admin Panel →</a>
+    </div>
+
+    <form id="admissionForm" class="space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Student Name *</label>
+          <input type="text" id="full_name" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Father's Name *</label>
+          <input type="text" id="father_name" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Phone / WhatsApp *</label>
+          <input type="text" id="phone" placeholder="03XX-XXXXXXX" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">CNIC / B-Form *</label>
+          <input type="text" id="cnic" placeholder="36302-XXXXXXX-X" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Degree / Course *</label>
+          <select id="program" required class="w-full border rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="">Select Program</option>
+            <option value="BS Computer Science">BS Computer Science</option>
+            <option value="BS Software Engineering">BS Software Engineering</option>
+            <option value="BS Information Technology">BS Information Technology</option>
+            <option value="Web Development Diploma">Web Development Diploma</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Previous Marks / %</label>
+          <input type="text" id="marks" placeholder="e.g. 920/1100 (83%)" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Passport Size Photo</label>
+        <input type="file" id="photoInput" accept="image/*" class="w-full border rounded-lg p-2 text-sm">
+        <img id="preview" class="hidden mt-3 w-24 h-24 object-cover rounded-lg border">
+      </div>
+
+      <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition">
+        Submit Admission Form
+      </button>
+
+      <div id="statusMsg" class="hidden p-3 rounded-lg text-sm font-medium text-center"></div>
+    </form>
+  </div>
+
+  <script>
+    let compressedPhoto = '';
+
+    // Photo ko compress kar ke Base64 banana (taake DB fast rahe)
+    document.getElementById('photoInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxW = 300;
+          const scale = maxW / img.width;
+          canvas.width = maxW;
+          canvas.height = img.height * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          compressedPhoto = canvas.toDataURL('image/jpeg', 0.7);
+
+          const preview = document.getElementById('preview');
+          preview.src = compressedPhoto;
+          preview.classList.remove('hidden');
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('admissionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const msg = document.getElementById('statusMsg');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      const payload = {
+        full_name: document.getElementById('full_name').value.trim(),
+        father_name: document.getElementById('father_name').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        cnic: document.getElementById('cnic').value.trim(),
+        program: document.getElementById('program').value,
+        marks: document.getElementById('marks').value.trim(),
+        photo: compressedPhoto
+      };
+
+      try {
+        const res = await fetch('/api/admissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        msg.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+        if (res.ok) {
+          msg.classList.add('bg-green-100', 'text-green-700');
+          msg.textContent = `Application #${data.id} successfully submit ho gayi!`;
+          e.target.reset();
+          document.getElementById('preview').classList.add('hidden');
+          compressedPhoto = '';
+        } else {
+          msg.classList.add('bg-red-100', 'text-red-700');
+          msg.textContent = data.error || 'Error aa gaya.';
+        }
+      } catch (err) {
+        msg.classList.remove('hidden');
+        msg.classList.add('bg-red-100', 'text-red-700');
+        msg.textContent = 'Server se connect nahi ho saka.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Admission Form';
+      }
+    });
+  </script>
+</body>
+</html>
