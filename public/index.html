@@ -5,9 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Online Admission Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; padding: 0 !important; }
+      #admissionCard { box-shadow: none !important; border: 2px solid #1e293b !important; }
+    }
+  </style>
 </head>
 <body class="bg-slate-100 min-h-screen py-10 px-4">
-  <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-8">
+
+  <!-- ADMISSION FORM -->
+  <div id="formContainer" class="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-8">
     <div class="flex justify-between items-center border-b pb-4 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-slate-800">Online Admission Form</h1>
@@ -70,10 +79,71 @@
     </form>
   </div>
 
+  <!-- ADMISSION CONFIRMATION CARD (Hidden by default) -->
+  <div id="admissionCard" class="hidden max-w-xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+    <div class="bg-blue-700 text-white p-6 flex justify-between items-center">
+      <div>
+        <span class="text-xs uppercase tracking-wider bg-green-500 text-white px-2.5 py-1 rounded-full font-semibold">Admission Submitted</span>
+        <h2 class="text-2xl font-bold mt-2">Admission Confirmation Card</h2>
+        <p class="text-blue-100 text-sm">Aapka admission form successfully submit ho gaya hai!</p>
+      </div>
+      <div class="text-right">
+        <p class="text-xs text-blue-200">Application ID</p>
+        <p id="cardId" class="text-2xl font-extrabold">#000</p>
+      </div>
+    </div>
+
+    <div class="p-6">
+      <div class="flex flex-col sm:flex-row gap-6 items-center sm:items-start border-b pb-6">
+        <img id="cardPhoto" src="" alt="Student Photo" class="w-28 h-28 rounded-xl object-cover border-2 border-blue-600 bg-slate-100">
+        <div class="flex-1 space-y-2 text-sm w-full">
+          <div class="flex justify-between border-b pb-1">
+            <span class="text-slate-500">Student Name:</span>
+            <span id="cardName" class="font-bold text-slate-800"></span>
+          </div>
+          <div class="flex justify-between border-b pb-1">
+            <span class="text-slate-500">Father's Name:</span>
+            <span id="cardFather" class="font-semibold text-slate-800"></span>
+          </div>
+          <div class="flex justify-between border-b pb-1">
+            <span class="text-slate-500">Program:</span>
+            <span id="cardProgram" class="font-bold text-blue-700"></span>
+          </div>
+          <div class="flex justify-between border-b pb-1">
+            <span class="text-slate-500">CNIC / B-Form:</span>
+            <span id="cardCnic" class="font-medium text-slate-800"></span>
+          </div>
+          <div class="flex justify-between border-b pb-1">
+            <span class="text-slate-500">Phone:</span>
+            <span id="cardPhone" class="font-medium text-slate-800"></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-500">Marks:</span>
+            <span id="cardMarks" class="font-medium text-slate-800"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 flex justify-between items-center text-xs text-slate-500">
+        <span>Date: <strong id="cardDate"></strong></span>
+        <span>Status: <strong class="text-amber-600">Pending Verification</strong></span>
+      </div>
+
+      <div class="mt-6 flex gap-3 no-print">
+        <button onclick="window.print()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition">
+          Print / Save PDF
+        </button>
+        <button onclick="resetPortal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2.5 rounded-lg transition">
+          New Admission
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let compressedPhoto = '';
 
-    // Photo ko compress kar ke Base64 banana (taake DB fast rahe)
+    // Photo compress & Base64
     document.getElementById('photoInput').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -124,14 +194,30 @@
         });
         const data = await res.json();
 
-        msg.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
         if (res.ok) {
-          msg.classList.add('bg-green-100', 'text-green-700');
-          msg.textContent = `Application #${data.id} successfully submit ho gayi!`;
-          e.target.reset();
-          document.getElementById('preview').classList.add('hidden');
-          compressedPhoto = '';
+          // Fill Admission Card
+          document.getElementById('cardId').textContent = `#${String(data.id).padStart(4, '0')}`;
+          document.getElementById('cardName').textContent = payload.full_name;
+          document.getElementById('cardFather').textContent = payload.father_name;
+          document.getElementById('cardProgram').textContent = payload.program;
+          document.getElementById('cardCnic').textContent = payload.cnic;
+          document.getElementById('cardPhone').textContent = payload.phone;
+          document.getElementById('cardMarks').textContent = payload.marks || 'N/A';
+          document.getElementById('cardDate').textContent = new Date().toLocaleDateString();
+
+          const cardPhoto = document.getElementById('cardPhoto');
+          if (payload.photo) {
+            cardPhoto.src = payload.photo;
+            cardPhoto.classList.remove('hidden');
+          } else {
+            cardPhoto.classList.add('hidden');
+          }
+
+          // Hide Form & Show Card
+          document.getElementById('formContainer').classList.add('hidden');
+          document.getElementById('admissionCard').classList.remove('hidden');
         } else {
+          msg.classList.remove('hidden', 'bg-green-100', 'text-green-700');
           msg.classList.add('bg-red-100', 'text-red-700');
           msg.textContent = data.error || 'Error aa gaya.';
         }
@@ -144,6 +230,15 @@
         btn.textContent = 'Submit Admission Form';
       }
     });
+
+    function resetPortal() {
+      document.getElementById('admissionForm').reset();
+      document.getElementById('preview').classList.add('hidden');
+      document.getElementById('statusMsg').classList.add('hidden');
+      compressedPhoto = '';
+      document.getElementById('admissionCard').classList.add('hidden');
+      document.getElementById('formContainer').classList.remove('hidden');
+    }
   </script>
 </body>
 </html>
