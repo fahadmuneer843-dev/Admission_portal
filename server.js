@@ -24,11 +24,12 @@ const pool = mysql.createPool({
   connectionLimit: 10
 });
 
-// Auto-create table on startup
-async function initDB() {
+// Auto-create table before any API request (Vercel friendly)
+let tableReady = false;
+app.use('/api', async (req, res, next) => {
+  if (tableReady) return next();
   try {
-    const conn = await pool.getConnection();
-    await conn.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS admissions (
         id INT AUTO_INCREMENT PRIMARY KEY,
         full_name VARCHAR(100) NOT NULL,
@@ -42,13 +43,12 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    conn.release();
-    console.log('Database connected & table ready!');
+    tableReady = true;
+    next();
   } catch (err) {
-    console.error('Database Error:', err.message);
+    res.status(500).json({ error: 'Database Error: ' + err.message });
   }
-}
-initDB();
+});
 
 // Admin Auth Middleware
 function checkAdmin(req, res, next) {
